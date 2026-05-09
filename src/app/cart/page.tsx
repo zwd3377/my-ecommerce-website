@@ -2,6 +2,7 @@ import { createClient } from '@/lib/supabase/server';
 import { cookies } from 'next/headers';
 import { redirect } from 'next/navigation';
 import Link from 'next/link';
+import { revalidatePath } from 'next/cache';
 
 // Define the structure of a cart item joined with product details
 type CartItem = {
@@ -38,6 +39,43 @@ export default async function CartPage() {
       )
     `)
     .eq('user_id', user.id);
+
+      const updateQuantity = async (formData: FormData) => {
+    'use server';
+    const cartItemId = Number(formData.get('cart_item_id'));
+    const newQuantity = Number(formData.get('new_quantity'));
+
+    if (isNaN(cartItemId) || isNaN(newQuantity)) {
+      return;
+    }
+
+    const cookieStore = cookies();
+    const supabase = createClient(cookieStore);
+
+    await supabase.rpc('update_cart_item_quantity', {
+      cart_item_id_to_update: cartItemId,
+      new_quantity: newQuantity,
+    });
+
+    revalidatePath('/cart');
+  };
+
+  const removeItem = async (formData: FormData) => {
+    'use server';
+    const cartItemId = Number(formData.get('cart_item_id'));
+    if (isNaN(cartItemId)) {
+      return;
+    }
+
+    const cookieStore = cookies();
+    const supabase = createClient(cookieStore);
+
+    await supabase.rpc('remove_item_from_cart', {
+      cart_item_id_to_remove: cartItemId
+    });
+
+    revalidatePath('/cart');
+  };
 
   if (error) {
     console.error('Error fetching cart:', error);
@@ -100,8 +138,32 @@ export default async function CartPage() {
                             <label htmlFor={`quantity-${item.id}`} className="sr-only">
                               Quantity, {product.name}
                             </label>
-                            {/* In the future, we can make this an editable input */}
-                            <p className="mt-1 text-sm text-gray-500">数量: {item.quantity}</p>
+                            <div className="flex items-center">
+                              <form action={updateQuantity}>
+                                <input type="hidden" name="cart_item_id" value={item.id} />
+                                <input type="hidden" name="new_quantity" value={item.quantity - 1} />
+                                <button type="submit" className="h-7 w-7 flex items-center justify-center rounded-full border border-gray-300 text-gray-600 hover:bg-gray-50" disabled={item.quantity <= 1}>-</button>
+                              </form>
+                              <p className="mx-4 text-sm font-medium text-gray-900">{item.quantity}</p>
+                              <form action={updateQuantity}>
+                                <input type="hidden" name="cart_item_id" value={item.id} />
+                                <input type="hidden" name="new_quantity" value={item.quantity + 1} />
+                                <button type="submit" className="h-7 w-7 flex items-center justify-center rounded-full border border-gray-300 text-gray-600 hover:bg-gray-50">+</button>
+                              </form>
+                            </div>
+
+                            <div className="absolute top-0 right-0">
+                              <form action={removeItem}>
+                                <input type="hidden" name="cart_item_id" value={item.id} />
+                                <button type="submit" className="-m-2 inline-flex p-2 text-gray-400 hover:text-gray-500">
+                                  <span className="sr-only">Remove</span>
+                                  {/* Heroicon name: solid/x */}
+                                  <svg className="h-5 w-5" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true">
+                                    <path fillRule="evenodd" d="M4.293 4.293a1 1 0 011.414 0L10 8.586l4.293-4.293a1 1 0 111.414 1.414L11.414 10l4.293 4.293a1 1 0 01-1.414 1.414L10 11.414l-4.293 4.293a1 1 0 01-1.414-1.414L8.586 10 4.293 5.707a1 1 0 010-1.414z" clipRule="evenodd" />
+                                  </svg>
+                                </button>
+                              </form>
+                            </div>
                           </div>
                         </div>
                       </div>
@@ -134,12 +196,12 @@ export default async function CartPage() {
             </dl>
 
             <div className="mt-6">
-              <button
-                type="submit"
-                className="w-full rounded-md border border-transparent bg-indigo-600 py-3 px-4 text-base font-medium text-white shadow-sm hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:ring-offset-2"
+              <Link
+                href="/checkout"
+                className="w-full block text-center rounded-md border border-transparent bg-indigo-600 py-3 px-4 text-base font-medium text-white shadow-sm hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:ring-offset-2"
               >
                 去结算
-              </button>
+              </Link>
             </div>
           </section>
         </div>

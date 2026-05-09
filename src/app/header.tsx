@@ -28,6 +28,8 @@ export default async function Header() {
           </Link>
           {user ? (
             <div className="flex items-center gap-4">
+              <Link href="/account/orders" className="hover:underline">我的订单</Link>
+              <span>|</span>
               你好, {user.email}
               <form action={signOut}>
                 <button className="py-2 px-4 rounded-md no-underline bg-red-500 text-white hover:bg-red-600">

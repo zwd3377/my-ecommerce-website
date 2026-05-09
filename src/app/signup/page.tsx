@@ -24,9 +24,9 @@ export default function Signup({ searchParams }: { searchParams: { message: stri
       return redirect("/signup?message=Could not create user");
     }
 
-    // By default, Supabase requires email confirmation. 
-    // Redirecting to a page that tells the user to check their email.
-    return redirect("/login?message=Check email to confirm signup and login");
+    // Since we've disabled email confirmation, we can redirect the user directly
+    // to the home page. They are now logged in.
+    return redirect("/");
   };
 
   return (

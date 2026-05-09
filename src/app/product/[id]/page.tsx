@@ -47,11 +47,11 @@ export default async function ProductPage({ params, searchParams }: ProductPageP
 
     if (error) {
       console.error('Error adding to cart:', error); // Log the error for debugging
-      return redirect(`/product/${product.id}?message=无法添加到购物车，请稍后重试`);
+      return redirect(`/product/${product.id}?message=Failed to add to cart. Please try again.`);
     }
 
     revalidatePath(`/product/${product.id}`);
-    return redirect(`/product/${product.id}?message=已成功添加到购物车！`);
+    return redirect(`/product/${product.id}?message=Added to cart successfully!`);
   };
 
   return (
