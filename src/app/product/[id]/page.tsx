@@ -55,54 +55,54 @@ export default async function ProductPage({ params, searchParams }: ProductPageP
   };
 
   return (
-    <div className="bg-white">
-      <div className="pt-6">
-        <div className="mx-auto max-w-2xl px-4 pt-10 pb-16 sm:px-6 lg:grid lg:max-w-7xl lg:grid-cols-3 lg:grid-rows-[auto,auto,1fr] lg:gap-x-8 lg:px-8 lg:pt-16 lg:pb-24">
-          {/* Product Title */}
-          <div className="lg:col-span-2 lg:border-r lg:border-gray-200 lg:pr-8">
-            <h1 className="text-2xl font-bold tracking-tight text-gray-900 sm:text-3xl">
-              {product.name}
-            </h1>
-          </div>
-
-          {/* Product Image */}
-          <div className="mt-6 aspect-h-5 aspect-w-4 sm:overflow-hidden sm:rounded-lg lg:aspect-h-4 lg:aspect-w-3">
-            {/* eslint-disable-next-line @next/next/no-img-element */}
-            <img
-              src={product.image_url ?? ''}
-              alt={product.name}
-              className="h-full w-full object-cover object-center"
-            />
-          </div>
-
-          {/* Product Price and Add to Cart */}
-          <div className="mt-4 lg:row-span-3 lg:mt-0">
-            <h2 className="sr-only">Product information</h2>
-            <p className="text-3xl tracking-tight text-gray-900">${product.price}</p>
-
-            {searchParams?.message && (
-              <div className="mt-4 text-sm font-medium text-green-600">
-                {searchParams.message}
+    <div className="bg-gray-50 min-h-screen">
+      <div className="container mx-auto px-4 py-12 sm:px-6 lg:px-8">
+        <div className="bg-white rounded-2xl shadow-xl overflow-hidden">
+          <div className="grid grid-cols-1 md:grid-cols-2">
+            {/* Product Image */}
+            <div className="p-6">
+              <div className="aspect-w-1 aspect-h-1 w-full overflow-hidden rounded-xl">
+                <img
+                  src={product.image_url ?? ''}
+                  alt={product.name}
+                  className="h-full w-full object-cover object-center"
+                />
               </div>
-            )}
+            </div>
 
-            <form action={addToCart} className="mt-10">
-              <button
-                type="submit"
-                className="flex w-full items-center justify-center rounded-md border border-transparent bg-indigo-600 px-8 py-3 text-base font-medium text-white hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:ring-offset-2"
-              >
-                添加到购物车
-              </button>
-            </form>
-          </div>
+            {/* Product Info */}
+            <div className="p-6 flex flex-col justify-center">
+              <h1 className="text-3xl font-extrabold tracking-tight text-gray-900 sm:text-4xl">
+                {product.name}
+              </h1>
 
-          {/* Product Description */}
-          <div className="py-10 lg:col-span-2 lg:col-start-1 lg:border-r lg:border-gray-200 lg:pt-6 lg:pb-16 lg:pr-8">
-            <div>
-              <h3 className="sr-only">Description</h3>
-              <div className="space-y-6">
-                <p className="text-base text-gray-900">{product.description}</p>
+              <div className="mt-4">
+                <p className="text-4xl font-bold text-gray-900">${product.price}</p>
               </div>
+
+              {/* Description */}
+              <div className="mt-6">
+                <div className="space-y-6">
+                  <p className="text-base text-gray-600">{product.description}</p>
+                </div>
+              </div>
+
+              {/* Add to Cart Form */}
+              <form action={addToCart} className="mt-8">
+                <button
+                  type="submit"
+                  className="w-full bg-indigo-600 border border-transparent rounded-md py-3 px-8 flex items-center justify-center text-base font-medium text-white hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 transition-colors duration-300"
+                >
+                  添加到购物车
+                </button>
+              </form>
+
+              {/* Message Display */}
+              {searchParams?.message && (
+                <div className={`mt-6 p-4 rounded-md text-center ${searchParams.message.includes('successfully') ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'}`}>
+                  <p className="font-medium">{searchParams.message}</p>
+                </div>
+              )}
             </div>
           </div>
         </div>

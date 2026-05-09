@@ -1,6 +1,7 @@
 import { headers, cookies } from "next/headers";
 import { createClient } from "@/lib/supabase/server";
 import { redirect } from "next/navigation";
+import Link from 'next/link';
 
 export default function Login({ searchParams }: { searchParams: { message: string } }) {
   const signIn = async (formData: FormData) => {
@@ -51,9 +52,9 @@ export default function Login({ searchParams }: { searchParams: { message: strin
         <button className="bg-indigo-600 hover:bg-indigo-700 rounded px-4 py-2 text-white mb-2">
           登录
         </button>
-        <a href="/signup" className="text-center text-sm text-gray-500 hover:underline">
+<Link href="/signup" className="text-center text-sm text-gray-500 hover:underline">
           还没有账户？注册一个
-        </a>
+        </Link>
         {searchParams?.message && (
           <p className="mt-4 p-4 bg-foreground/10 text-foreground text-center">
             {searchParams.message}

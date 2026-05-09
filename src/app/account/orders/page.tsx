@@ -2,6 +2,7 @@ import { createClient } from '@/lib/supabase/server';
 import { cookies } from 'next/headers';
 import { redirect } from 'next/navigation';
 import Link from 'next/link';
+import type { OrderSummary } from '@/lib/types';
 
 export default async function OrdersPage() {
   const cookieStore = cookies();
@@ -18,7 +19,10 @@ export default async function OrdersPage() {
     .from('orders')
     .select('id, created_at, total_amount, status')
     .eq('user_id', user.id)
-    .order('created_at', { ascending: false }); // Show newest orders first
+    .order('created_at', { ascending: false });
+
+  // Explicitly type the data after fetching to ensure type safety in JSX
+  const typedOrders: OrderSummary[] = orders || [];
 
   if (error) {
     console.error('Error fetching orders:', error);
@@ -36,10 +40,10 @@ export default async function OrdersPage() {
         </div>
 
         <div className="mt-12 space-y-16 sm:mt-16">
-          {orders.length === 0 ? (
+          {typedOrders.length === 0 ? (
             <p>您还没有任何订单。</p>
           ) : (
-            orders.map((order) => (
+            typedOrders.map((order) => (
               <section key={order.id} aria-labelledby={`${order.id}-heading`}>
                 <div className="space-y-8 md:flex md:items-end md:justify-between md:space-y-0">
                   <div className="space-y-4 md:flex md:items-center md:space-y-0 md:space-x-4">
@@ -67,12 +71,12 @@ export default async function OrdersPage() {
                       <h4 className="sr-only">Status</h4>
                       <p className="text-sm font-medium text-gray-900 capitalize">{order.status}</p>
                     </div>
-                    {/* <Link
+                    <Link
                       href={`/account/orders/${order.id}`}
                       className="flex items-center justify-center rounded-md border border-gray-300 bg-white py-2 px-4 text-sm font-medium text-gray-700 shadow-sm hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:ring-offset-2"
                     >
                       <span>查看详情</span>
-                    </Link> */}
+                    </Link>
                   </div>
                 </div>
                 {/* In the future, we can add product images here */}

@@ -7,6 +7,7 @@ export default async function Header() {
   const cookieStore = cookies();
   const supabase = createClient(cookieStore);
   const { data: { user } } = await supabase.auth.getUser();
+  const isAdmin = user?.email === process.env.ADMIN_EMAIL;
 
   const signOut = async () => {
     'use server';
@@ -28,7 +29,13 @@ export default async function Header() {
           </Link>
           {user ? (
             <div className="flex items-center gap-4">
-              <Link href="/account/orders" className="hover:underline">我的订单</Link>
+              {isAdmin && (
+            <>
+              <Link href="/admin/orders" className="hover:underline font-semibold text-indigo-600">后台管理</Link>
+              <span>|</span>
+            </>
+          )}
+          <Link href="/account/orders" className="hover:underline">我的订单</Link>
               <span>|</span>
               你好, {user.email}
               <form action={signOut}>
