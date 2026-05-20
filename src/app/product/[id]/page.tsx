@@ -1,21 +1,16 @@
 import { cookies } from "next/headers";
 import { createClient } from "@/lib/supabase/server";
-import { notFound, redirect } from "next/navigation";
-import { revalidatePath } from 'next/cache';
+import { notFound } from "next/navigation";
+import Link from "next/link";
+import AddToCartButton from "@/components/AddToCartButton";
 
-// This tells Next.js to re-fetch data on every request.
 export const revalidate = 0;
 
 interface ProductPageProps {
-  params: {
-    id: string;
-  };
-  searchParams: {
-    message: string;
-  };
+  params: { id: string };
 }
 
-export default async function ProductPage({ params, searchParams }: ProductPageProps) {
+export default async function ProductPage({ params }: ProductPageProps) {
   const cookieStore = cookies();
   const supabase = createClient(cookieStore);
 
@@ -25,84 +20,79 @@ export default async function ProductPage({ params, searchParams }: ProductPageP
     .eq("id", params.id)
     .single();
 
-  // If the product doesn't exist, show a 404 page.
-  if (error || !product) {
-    notFound();
-  }
-
-  const addToCart = async () => {
-    'use server';
-
-    const cookieStore = cookies();
-    const supabase = createClient(cookieStore);
-
-    const { data: { user } } = await supabase.auth.getUser();
-    if (!user) {
-      return redirect('/login');
-    }
-
-    const { error } = await supabase.rpc('add_to_cart', {
-      product_id_to_add: product.id,
-    });
-
-    if (error) {
-      console.error('Error adding to cart:', error); // Log the error for debugging
-      return redirect(`/product/${product.id}?message=Failed to add to cart. Please try again.`);
-    }
-
-    revalidatePath(`/product/${product.id}`);
-    return redirect(`/product/${product.id}?message=Added to cart successfully!`);
-  };
+  if (error || !product) notFound();
 
   return (
     <div className="bg-gray-50 min-h-screen">
-      <div className="container mx-auto px-4 py-12 sm:px-6 lg:px-8">
-        <div className="bg-white rounded-2xl shadow-xl overflow-hidden">
+      <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8 py-8 sm:py-12">
+        {/* Breadcrumb */}
+        <nav className="mb-6 text-sm text-gray-500 flex items-center gap-2">
+          <Link href="/" className="hover:text-indigo-600 transition-colors">首页</Link>
+          <span>/</span>
+          <span className="text-gray-700 truncate max-w-[60vw]">{product.name}</span>
+        </nav>
+
+        <div className="bg-white rounded-3xl shadow-sm overflow-hidden ring-1 ring-gray-100">
           <div className="grid grid-cols-1 md:grid-cols-2">
-            {/* Product Image */}
-            <div className="p-6">
-              <div className="aspect-w-1 aspect-h-1 w-full overflow-hidden rounded-xl">
+            {/* Image */}
+            <div className="p-4 sm:p-6">
+              <div className="relative aspect-square w-full overflow-hidden rounded-2xl bg-gray-100 group">
+                {/* eslint-disable-next-line @next/next/no-img-element */}
                 <img
-                  src={product.image_url ?? ''}
+                  src={product.image_url ?? ""}
                   alt={product.name}
-                  className="h-full w-full object-cover object-center"
+                  className="h-full w-full object-cover object-center transition-transform duration-500 group-hover:scale-105"
                 />
+                <span className="absolute left-4 top-4 inline-flex items-center rounded-full bg-white/90 backdrop-blur px-3 py-1 text-xs font-medium text-gray-800 shadow">
+                  ✨ 优选
+                </span>
               </div>
             </div>
 
-            {/* Product Info */}
-            <div className="p-6 flex flex-col justify-center">
-              <h1 className="text-3xl font-extrabold tracking-tight text-gray-900 sm:text-4xl">
+            {/* Info */}
+            <div className="p-6 sm:p-10 flex flex-col">
+              <h1 className="text-2xl sm:text-3xl font-extrabold tracking-tight text-gray-900">
                 {product.name}
               </h1>
 
-              <div className="mt-4">
-                <p className="text-4xl font-bold text-gray-900">${product.price}</p>
+              <div className="mt-3 flex items-center gap-2 text-sm text-amber-500">
+                <span>★★★★★</span>
+                <span className="text-gray-500">(128 条评价)</span>
               </div>
 
-              {/* Description */}
-              <div className="mt-6">
-                <div className="space-y-6">
-                  <p className="text-base text-gray-600">{product.description}</p>
-                </div>
+              <div className="mt-5 flex items-baseline gap-3">
+                <p className="text-4xl font-extrabold text-gray-900">
+                  <span className="text-xl text-gray-500 mr-0.5">¥</span>
+                  {product.price}
+                </p>
+                <span className="text-sm text-gray-400 line-through">
+                  ¥{(Number(product.price) * 1.2).toFixed(2)}
+                </span>
+                <span className="text-xs px-2 py-0.5 rounded-full bg-red-100 text-red-600 font-medium">
+                  限时 8 折
+                </span>
               </div>
 
-              {/* Add to Cart Form */}
-              <form action={addToCart} className="mt-8">
-                <button
-                  type="submit"
-                  className="w-full bg-indigo-600 border border-transparent rounded-md py-3 px-8 flex items-center justify-center text-base font-medium text-white hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 transition-colors duration-300"
+              <p className="mt-6 text-base text-gray-600 leading-relaxed">
+                {product.description || "高品质精选商品，设计简约，做工细腻，带给你舒适的使用体验。"}
+              </p>
+
+              <ul className="mt-6 grid grid-cols-2 gap-3 text-sm text-gray-600">
+                <li className="flex items-center gap-2">🚚 全场免邮</li>
+                <li className="flex items-center gap-2">🛡️ 正品保障</li>
+                <li className="flex items-center gap-2">↩️ 7天退换</li>
+                <li className="flex items-center gap-2">⚡ 闪电发货</li>
+              </ul>
+
+              <div className="mt-8 flex flex-col sm:flex-row gap-3">
+                <AddToCartButton productId={product.id} />
+                <Link
+                  href="/cart"
+                  className="inline-flex items-center justify-center gap-2 rounded-xl border border-gray-300 bg-white py-3 px-6 text-base font-semibold text-gray-800 hover:bg-gray-50 active:scale-[0.98] transition-all"
                 >
-                  添加到购物车
-                </button>
-              </form>
-
-              {/* Message Display */}
-              {searchParams?.message && (
-                <div className={`mt-6 p-4 rounded-md text-center ${searchParams.message.includes('successfully') ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'}`}>
-                  <p className="font-medium">{searchParams.message}</p>
-                </div>
-              )}
+                  去购物车
+                </Link>
+              </div>
             </div>
           </div>
         </div>
