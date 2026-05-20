@@ -1,124 +1,97 @@
 import { createAdminClient } from '@/lib/supabase/admin';
-import { createClient } from '@/lib/supabase/server';
-import { cookies } from 'next/headers';
 import Link from 'next/link';
 import { revalidatePath } from 'next/cache';
 import type { OrderSummary } from '@/lib/types';
-import OrderStatusUpdater from '@/components/OrderStatusUpdater'; // 假设你在 types.ts 中定义了这个类型
+import OrderStatusBadge from '@/components/OrderStatusBadge';
+import OrderStatusUpdater from '@/components/OrderStatusUpdater';
 
-// --- 修正点 1: 将 Server Action 移到组件外部 ---
-// 这个函数现在是顶层函数，符合 Server Action 的要求。
+export const revalidate = 0;
+
 async function updateOrderStatus(formData: FormData) {
-  'use server'; // 'use server' 指令放在函数体的最开始
-
+  'use server';
   const orderId = Number(formData.get('order_id'));
   const newStatus = formData.get('new_status') as OrderSummary['status'];
-
-  // 简单的服务器端验证
-  const ALL_STATUSES = ['pending', 'processing', 'shipped', 'delivered', 'cancelled'];
-  if (!orderId || !newStatus || !ALL_STATUSES.includes(newStatus)) {
-    console.error('Invalid data for order status update.');
-    return; // 在实际应用中可以返回一个错误对象
-  }
-  
-  // 使用 Admin Client 更新数据，因为它需要绕过 RLS
-  const adminSupabase = createAdminClient();
-  const { error } = await adminSupabase
-    .from('orders')
-    .update({ status: newStatus })
-    .eq('id', orderId);
-
-  if (error) {
-    console.error('Failed to update order status:', error);
-    // 在真实应用中，你可能想通过返回一个对象来将错误信息传递给UI
-    return;
-  }
-
-  // --- 修正点 2: 使用 revalidatePath 按需重新验证 ---
-  // 这会使 Next.js 重新获取当前页面的数据，从而显示最新的订单状态。
+  const ALL = ['pending', 'processing', 'shipped', 'delivered', 'cancelled'];
+  if (!orderId || !newStatus || !ALL.includes(newStatus)) return;
+  const admin = createAdminClient();
+  await admin.from('orders').update({ status: newStatus }).eq('id', orderId);
   revalidatePath('/admin/orders');
 }
 
-// 建议定义订单状态的常量，以便复用
-const ALL_STATUSES: Array<OrderSummary['status']> = [
-  'pending',
-  'processing',
-  'shipped',
-  'delivered',
-  'cancelled',
-];
-
 export default async function AdminOrdersPage() {
-  const cookieStore = cookies();
-  const supabase = createClient(cookieStore);
-
-  // 1. 验证用户是否为管理员
-  const { data: { user } } = await supabase.auth.getUser();
-  if (!user || user.email !== process.env.ADMIN_EMAIL) {
-    return (
-      <div className="p-8 text-center">
-        <h1 className="text-2xl font-bold text-red-600">访问被拒绝</h1>
-        <p className="mt-2">您没有权限访问此页面。</p>
-        <Link href="/" className="mt-4 inline-block text-indigo-600 hover:underline">返回首页</Link>
-      </div>
-    );
-  }
-
-  // 2. 如果是管理员，使用 Admin Client 获取所有订单
-  const adminSupabase = createAdminClient();
-  const { data: orders, error } = await adminSupabase
+  const admin = createAdminClient();
+  const { data: orders, error } = await admin
     .from('orders')
     .select('id, created_at, total_amount, status, shipping_address')
     .order('created_at', { ascending: false });
-    
-  if (error) {
-    console.error('Error fetching all orders for admin:', error);
-    return <div className="p-8">加载所有订单时出错。</div>;
-  }
-  
-  // 类型断言，确保数据类型正确
-  const typedOrders: OrderSummary[] = orders || [];
+
+  const list: OrderSummary[] = (orders as any) ?? [];
 
   return (
-    <div className="p-8">
-      <h1 className="text-3xl font-bold">后台 - 所有订单</h1>
-      <div className="mt-8 flow-root">
-        <div className="-mx-4 -my-2 overflow-x-auto sm:-mx-6 lg:-mx-8">
-          <div className="inline-block min-w-full py-2 align-middle sm:px-6 lg:px-8">
-            <table className="min-w-full divide-y divide-gray-300">
-              <thead>
-                <tr>
-                  <th scope="col" className="py-3.5 pl-4 pr-3 text-left text-sm font-semibold text-gray-900 sm:pl-0">订单号</th>
-                  <th scope="col" className="px-3 py-3.5 text-left text-sm font-semibold text-gray-900">日期</th>
-                  <th scope="col" className="px-3 py-3.5 text-left text-sm font-semibold text-gray-900">收件人</th>
-                  <th scope="col" className="px-3 py-3.5 text-left text-sm font-semibold text-gray-900">总金额</th>
-                  <th scope="col" className="px-3 py-3.5 text-left text-sm font-semibold text-gray-900">状态</th>
-                  <th scope="col" className="relative py-3.5 pl-3 pr-4 sm:pr-0">
-                    <span className="sr-only">操作</span>
-                  </th>
+    <div className="space-y-6">
+      <div>
+        <h1 className="text-2xl sm:text-3xl font-extrabold text-gray-900">订单管理</h1>
+        <p className="mt-1 text-sm text-gray-500">查看并更新所有订单的状态。</p>
+      </div>
+
+      {error && (
+        <div className="rounded-2xl bg-red-50 border border-red-200 p-6 text-red-600">
+          加载失败：{error.message}
+        </div>
+      )}
+
+      {list.length === 0 ? (
+        <div className="rounded-2xl bg-white ring-1 ring-gray-100 shadow-sm p-12 text-center">
+          <div className="text-5xl">📋</div>
+          <p className="mt-4 text-gray-700 font-medium">暂无订单</p>
+        </div>
+      ) : (
+        <div className="rounded-2xl bg-white ring-1 ring-gray-100 shadow-sm overflow-hidden">
+          <div className="overflow-x-auto">
+            <table className="min-w-full divide-y divide-gray-100 text-sm">
+              <thead className="bg-gray-50">
+                <tr className="text-left text-xs uppercase tracking-wider text-gray-500">
+                  <th className="px-4 py-3">订单号</th>
+                  <th className="px-4 py-3">日期</th>
+                  <th className="px-4 py-3">收件人</th>
+                  <th className="px-4 py-3">总金额</th>
+                  <th className="px-4 py-3">状态</th>
+                  <th className="px-4 py-3 text-right">操作</th>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-gray-200">
-                {typedOrders.map((order) => {
-                  // 从 JSONB 字段中安全地获取收件人姓名
-                  const address = order.shipping_address as { fullName?: string };
+              <tbody className="divide-y divide-gray-100">
+                {list.map((order) => {
+                  const addr = order.shipping_address as { fullName?: string } | null;
                   return (
-                    <tr key={order.id}>
-                      <td className="whitespace-nowrap py-4 pl-4 pr-3 text-sm font-medium text-gray-900 sm:pl-0">{order.id}</td>
-                      <td className="whitespace-nowrap px-3 py-4 text-sm text-gray-500">{new Date(order.created_at).toLocaleDateString()}</td>
-                      <td className="whitespace-nowrap px-3 py-4 text-sm text-gray-500">{address?.fullName || 'N/A'}</td>
-                      <td className="whitespace-nowrap px-3 py-4 text-sm text-gray-500">${order.total_amount.toFixed(2)}</td>
-                      <td className="whitespace-nowrap px-3 py-4 text-sm text-gray-500">
-                        {/* --- 修正点 3: 将表单的 action 指向顶层函数 --- */}
-                        <OrderStatusUpdater
-                          orderId={order.id}
-                          currentStatus={order.status}
-                          updateOrderStatusAction={updateOrderStatus}
-                        />
+                    <tr key={order.id} className="hover:bg-gray-50 transition-colors">
+                      <td className="px-4 py-3 font-mono font-semibold text-gray-900">#{order.id}</td>
+                      <td className="px-4 py-3 text-gray-500 whitespace-nowrap">
+                        {new Date(order.created_at).toLocaleString('zh-CN', {
+                          month: '2-digit',
+                          day: '2-digit',
+                          hour: '2-digit',
+                          minute: '2-digit',
+                        })}
                       </td>
-                      <td className="relative whitespace-nowrap py-4 pl-3 pr-4 text-right text-sm font-medium sm:pr-0">
-                        {/* --- 结合点: 保留了 Edit 链接 --- */}
-                        <Link href={`/admin/orders/${order.id}`} className="text-indigo-600 hover:text-indigo-900">
+                      <td className="px-4 py-3 text-gray-700">{addr?.fullName || '—'}</td>
+                      <td className="px-4 py-3 font-semibold text-indigo-600 whitespace-nowrap">
+                        ¥{Number(order.total_amount).toFixed(2)}
+                      </td>
+                      <td className="px-4 py-3">
+                        <div className="flex items-center gap-2">
+                          <OrderStatusBadge status={order.status} />
+                          <OrderStatusUpdater
+                            orderId={order.id}
+                            currentStatus={order.status}
+                            updateOrderStatusAction={updateOrderStatus}
+                          />
+                        </div>
+                      </td>
+                      <td className="px-4 py-3 text-right">
+                        <Link
+                          href={`/admin/orders/${order.id}`}
+                          className="rounded-lg px-3 py-1.5 text-indigo-600 hover:bg-indigo-50 transition"
+                        >
                           详情
                         </Link>
                       </td>
@@ -129,7 +102,7 @@ export default async function AdminOrdersPage() {
             </table>
           </div>
         </div>
-      </div>
+      )}
     </div>
   );
 }

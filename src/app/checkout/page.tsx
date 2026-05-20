@@ -2,28 +2,28 @@ import { createClient } from '@/lib/supabase/server';
 import { cookies } from 'next/headers';
 import { redirect } from 'next/navigation';
 import { revalidatePath } from 'next/cache';
+import Link from 'next/link';
+import SubmitButton from '@/components/SubmitButton';
 
-// This is a simplified checkout page. In a real-world scenario, 
-// you'd have a much more robust address form and validation.
+export const revalidate = 0;
 
-export default async function CheckoutPage() {
+export default async function CheckoutPage({
+  searchParams,
+}: {
+  searchParams: { message?: string };
+}) {
   const cookieStore = cookies();
   const supabase = createClient(cookieStore);
 
   const { data: { user } } = await supabase.auth.getUser();
+  if (!user) return redirect('/login?message=请先登录以进行结算');
 
-  if (!user) {
-    return redirect('/login?message=请先登录以进行结算');
-  }
-
-  // Fetch cart items to display a summary
   const { data: cartItems, error: cartError } = await supabase
     .from('cart')
     .select(`*, products(*)`)
     .eq('user_id', user.id);
 
   if (cartError || !cartItems || cartItems.length === 0) {
-    // If cart is empty, redirect back to cart page with a message
     return redirect('/cart?message=您的购物车是空的，无法结算');
   }
 
@@ -31,163 +31,146 @@ export default async function CheckoutPage() {
     const product = Array.isArray(item.products) ? item.products[0] : item.products;
     return product ? acc + product.price * item.quantity : acc;
   }, 0);
+  const totalQty = cartItems.reduce((acc, it: any) => acc + (it.quantity ?? 0), 0);
 
-  // The Server Action that will process the order
   const processOrder = async (formData: FormData) => {
     'use server';
-
     const shippingAddress = {
       fullName: formData.get('full-name') as string,
       address: formData.get('address') as string,
       city: formData.get('city') as string,
       postalCode: formData.get('postal-code') as string,
     };
-
     const cookieStore = cookies();
     const supabase = createClient(cookieStore);
-
-    // Call the RPC function to create the order and get the new order ID
     const { data: newOrderId, error } = await supabase
-      .rpc('create_order_from_cart', {
-        shipping_address_data: shippingAddress,
-      })
-      .single(); // .single() is used because the function returns a single value
-
+      .rpc('create_order_from_cart', { shipping_address_data: shippingAddress })
+      .single();
     if (error) {
-      console.error('Error creating order:', error);
-      return redirect('/checkout?message=Order creation failed. Please try again.');
+      return redirect('/checkout?message=下单失败，请稍后重试');
     }
-
-    // On success, revalidate the cart path to reflect that it's empty
     revalidatePath('/cart');
-    
-    // Redirect to a dynamic success page with the new order ID
     return redirect(`/order/success/${newOrderId}`);
   };
 
+  const inputCls =
+    'w-full rounded-xl border border-gray-300 bg-white px-4 py-2.5 text-sm focus:border-indigo-500 focus:ring-2 focus:ring-indigo-200 focus:outline-none transition';
+
   return (
-    <div className="bg-gray-50">
-      <div className="mx-auto max-w-2xl px-4 pt-16 pb-24 sm:px-6 lg:max-w-7xl lg:px-8">
-        <h2 className="text-3xl font-bold tracking-tight text-gray-900">结算</h2>
+    <div className="bg-gray-50 min-h-[calc(100vh-4rem)]">
+      <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8 py-10 sm:py-14">
+        <nav className="mb-4 text-sm text-gray-500 flex items-center gap-2">
+          <Link href="/cart" className="hover:text-indigo-600">购物车</Link>
+          <span>/</span>
+          <span className="text-gray-700">结算</span>
+        </nav>
+        <h1 className="text-3xl font-extrabold tracking-tight text-gray-900 sm:text-4xl">结算</h1>
 
-        <form action={processOrder} className="lg:grid lg:grid-cols-2 lg:gap-x-12 xl:gap-x-16 mt-12">
-          {/* Shipping Information Form */}
-          <div>
-            <div>
-              <h2 className="text-lg font-medium text-gray-900">收货信息</h2>
-
-              <div className="mt-4 grid grid-cols-1 gap-y-6 sm:grid-cols-2 sm:gap-x-4">
+        <form action={processOrder} className="mt-8 lg:grid lg:grid-cols-12 lg:gap-x-8">
+          {/* Shipping */}
+          <div className="lg:col-span-7 space-y-6">
+            <section className="rounded-2xl bg-white p-6 ring-1 ring-gray-100 shadow-sm">
+              <h2 className="text-lg font-semibold text-gray-900">收货信息</h2>
+              <div className="mt-5 grid grid-cols-1 sm:grid-cols-2 gap-5">
                 <div className="sm:col-span-2">
-                  <label htmlFor="full-name" className="block text-sm font-medium text-gray-700">
-                    姓名
-                  </label>
-                  <div className="mt-1">
-                    <input
-                      type="text"
-                      id="full-name"
-                      name="full-name"
-                      autoComplete="name"
-                      required
-                      className="block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm p-2"
-                    />
-                  </div>
+                  <label htmlFor="full-name" className="block text-sm font-medium text-gray-700 mb-1.5">姓名</label>
+                  <input id="full-name" name="full-name" autoComplete="name" required className={inputCls} />
                 </div>
-
                 <div className="sm:col-span-2">
-                  <label htmlFor="address" className="block text-sm font-medium text-gray-700">
-                    详细地址
-                  </label>
-                  <div className="mt-1">
-                    <input
-                      type="text"
-                      name="address"
-                      id="address"
-                      autoComplete="street-address"
-                      required
-                      className="block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm p-2"
-                    />
-                  </div>
+                  <label htmlFor="phone" className="block text-sm font-medium text-gray-700 mb-1.5">手机号</label>
+                  <input id="phone" name="phone" type="tel" autoComplete="tel" placeholder="可选" className={inputCls} />
                 </div>
-
-                <div>
-                  <label htmlFor="city" className="block text-sm font-medium text-gray-700">
-                    城市
-                  </label>
-                  <div className="mt-1">
-                    <input
-                      type="text"
-                      name="city"
-                      id="city"
-                      autoComplete="address-level2"
-                      required
-                      className="block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm p-2"
-                    />
-                  </div>
+                <div className="sm:col-span-2">
+                  <label htmlFor="address" className="block text-sm font-medium text-gray-700 mb-1.5">详细地址</label>
+                  <input id="address" name="address" autoComplete="street-address" required className={inputCls} />
                 </div>
-
                 <div>
-                  <label htmlFor="postal-code" className="block text-sm font-medium text-gray-700">
-                    邮政编码
-                  </label>
-                  <div className="mt-1">
-                    <input
-                      type="text"
-                      name="postal-code"
-                      id="postal-code"
-                      autoComplete="postal-code"
-                      required
-                      className="block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm p-2"
-                    />
-                  </div>
+                  <label htmlFor="city" className="block text-sm font-medium text-gray-700 mb-1.5">城市</label>
+                  <input id="city" name="city" autoComplete="address-level2" required className={inputCls} />
+                </div>
+                <div>
+                  <label htmlFor="postal-code" className="block text-sm font-medium text-gray-700 mb-1.5">邮政编码</label>
+                  <input id="postal-code" name="postal-code" autoComplete="postal-code" required className={inputCls} />
+                </div>
+                <div className="sm:col-span-2">
+                  <label htmlFor="note" className="block text-sm font-medium text-gray-700 mb-1.5">订单备注</label>
+                  <textarea id="note" name="note" rows={3} placeholder="选填，例如送货时间偏好" className={inputCls} />
                 </div>
               </div>
-            </div>
+            </section>
+
+            <section className="rounded-2xl bg-white p-6 ring-1 ring-gray-100 shadow-sm">
+              <h2 className="text-lg font-semibold text-gray-900">支付方式</h2>
+              <div className="mt-4 grid grid-cols-2 sm:grid-cols-3 gap-3">
+                {[
+                  { id: 'cod', label: '货到付款', icon: '💵', desc: '签收时支付' },
+                  { id: 'wechat', label: '微信支付', icon: '💬', desc: '便捷扫码' },
+                  { id: 'alipay', label: '支付宝', icon: '🅰️', desc: '安全可靠' },
+                ].map((m, i) => (
+                  <label key={m.id} className="cursor-pointer">
+                    <input type="radio" name="pay-method" value={m.id} defaultChecked={i === 0} className="peer sr-only" />
+                    <div className="rounded-xl border border-gray-200 p-3 text-center peer-checked:border-indigo-500 peer-checked:bg-indigo-50 peer-checked:ring-2 peer-checked:ring-indigo-200 transition">
+                      <div className="text-2xl">{m.icon}</div>
+                      <p className="mt-1 text-sm font-medium text-gray-900">{m.label}</p>
+                      <p className="text-xs text-gray-500">{m.desc}</p>
+                    </div>
+                  </label>
+                ))}
+              </div>
+            </section>
+
+            {searchParams?.message && (
+              <div className="rounded-xl bg-red-50 border border-red-200 px-4 py-3 text-sm text-red-600">
+                {searchParams.message}
+              </div>
+            )}
           </div>
 
-          {/* Order Summary */}
-          <div className="mt-10 lg:mt-0">
-            <h2 className="text-lg font-medium text-gray-900">订单总览</h2>
-
-            <div className="mt-4 rounded-lg border border-gray-200 bg-white shadow-sm">
-              <ul role="list" className="divide-y divide-gray-200">
-                {cartItems.map((item) => {
-                   const product = Array.isArray(item.products) ? item.products[0] : item.products;
-                   if (!product) return null;
-                   return (
-                    <li key={item.id} className="flex py-6 px-4 sm:px-6">
-                      <div className="flex-shrink-0">
-                         {/* eslint-disable-next-line @next/next/no-img-element */}
-                        <img src={product.image_url ?? ''} alt={product.name} className="w-20 rounded-md" />
+          {/* Summary */}
+          <aside className="mt-8 lg:mt-0 lg:col-span-5">
+            <div className="sticky top-24 rounded-2xl bg-white ring-1 ring-gray-100 shadow-sm overflow-hidden">
+              <div className="p-6">
+                <h2 className="text-lg font-semibold text-gray-900">订单总览</h2>
+              </div>
+              <ul className="divide-y divide-gray-100 max-h-80 overflow-auto">
+                {cartItems.map((item: any) => {
+                  const product = Array.isArray(item.products) ? item.products[0] : item.products;
+                  if (!product) return null;
+                  return (
+                    <li key={item.id} className="flex p-4 sm:p-5 gap-4">
+                      {/* eslint-disable-next-line @next/next/no-img-element */}
+                      <img src={product.image_url ?? ''} alt={product.name} className="h-16 w-16 rounded-lg object-cover bg-gray-100" />
+                      <div className="flex-1 min-w-0">
+                        <p className="text-sm font-medium text-gray-900 truncate">{product.name}</p>
+                        <p className="text-xs text-gray-500">数量 × {item.quantity}</p>
                       </div>
-                      <div className="ml-6 flex flex-1 flex-col">
-                        <div className="flex">
-                          <div className="min-w-0 flex-1">
-                            <h4 className="text-sm font-medium text-gray-700 hover:text-gray-800">{product.name}</h4>
-                            <p className="mt-1 text-sm text-gray-500">数量: {item.quantity}</p>
-                          </div>
-                        </div>
-                      </div>
+                      <p className="text-sm font-semibold text-gray-900">¥{(product.price * item.quantity).toFixed(2)}</p>
                     </li>
-                   );
+                  );
                 })}
               </ul>
-              <dl className="space-y-6 border-t border-gray-200 py-6 px-4 sm:px-6">
-                <div className="flex items-center justify-between">
-                  <dt className="text-base font-medium">总计</dt>
-                  <dd className="text-base font-medium text-gray-900">${total.toFixed(2)}</dd>
+              <dl className="border-t border-gray-100 p-6 space-y-3 text-sm">
+                <div className="flex justify-between text-gray-600">
+                  <dt>商品 ({totalQty} 件)</dt>
+                  <dd className="text-gray-900 font-medium">¥{total.toFixed(2)}</dd>
+                </div>
+                <div className="flex justify-between text-gray-600">
+                  <dt>运费</dt>
+                  <dd className="text-green-600 font-medium">免运费</dd>
+                </div>
+                <div className="flex justify-between border-t border-gray-100 pt-3 text-base">
+                  <dt className="font-semibold text-gray-900">应付总计</dt>
+                  <dd className="font-extrabold text-indigo-600">¥{total.toFixed(2)}</dd>
                 </div>
               </dl>
-
-              <div className="border-t border-gray-200 py-6 px-4 sm:px-6">
-                <button
-                  type="submit"
-                  className="w-full rounded-md border border-transparent bg-indigo-600 py-3 px-4 text-base font-medium text-white shadow-sm hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:ring-offset-2"
-                >
-                  确认下单
-                </button>
+              <div className="px-6 pb-6">
+                <SubmitButton pendingText="正在提交订单…">确认下单 →</SubmitButton>
+                <p className="mt-3 text-center text-xs text-gray-500">
+                  点击「确认下单」即表示您同意我们的<a className="text-indigo-600 hover:underline" href="#">服务条款</a>
+                </p>
               </div>
             </div>
-          </div>
+          </aside>
         </form>
       </div>
     </div>

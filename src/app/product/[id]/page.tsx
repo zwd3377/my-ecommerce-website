@@ -3,6 +3,8 @@ import { createClient } from "@/lib/supabase/server";
 import { notFound } from "next/navigation";
 import Link from "next/link";
 import AddToCartButton from "@/components/AddToCartButton";
+import ProductCard from "@/app/product-card";
+import type { Product } from "@/lib/types";
 
 export const revalidate = 0;
 
@@ -22,19 +24,37 @@ export default async function ProductPage({ params }: ProductPageProps) {
 
   if (error || !product) notFound();
 
+  // Admin check (for inline edit shortcut)
+  const { data: { user } } = await supabase.auth.getUser();
+  const isAdmin = user?.email === process.env.ADMIN_EMAIL;
+
+  // Related products (other products, randomly limited)
+  const { data: related } = await supabase
+    .from("products")
+    .select("*")
+    .neq("id", product.id)
+    .limit(4)
+    .returns<Product[]>();
+
   return (
     <div className="bg-gray-50 min-h-screen">
       <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8 py-8 sm:py-12">
-        {/* Breadcrumb */}
         <nav className="mb-6 text-sm text-gray-500 flex items-center gap-2">
           <Link href="/" className="hover:text-indigo-600 transition-colors">首页</Link>
           <span>/</span>
           <span className="text-gray-700 truncate max-w-[60vw]">{product.name}</span>
+          {isAdmin && (
+            <Link
+              href={`/admin/products/${product.id}/edit`}
+              className="ml-auto inline-flex items-center gap-1 rounded-full bg-amber-100 text-amber-800 px-3 py-1 text-xs font-medium hover:bg-amber-200 transition"
+            >
+              ✏️ 编辑此商品
+            </Link>
+          )}
         </nav>
 
         <div className="bg-white rounded-3xl shadow-sm overflow-hidden ring-1 ring-gray-100">
           <div className="grid grid-cols-1 md:grid-cols-2">
-            {/* Image */}
             <div className="p-4 sm:p-6">
               <div className="relative aspect-square w-full overflow-hidden rounded-2xl bg-gray-100 group">
                 {/* eslint-disable-next-line @next/next/no-img-element */}
@@ -49,7 +69,6 @@ export default async function ProductPage({ params }: ProductPageProps) {
               </div>
             </div>
 
-            {/* Info */}
             <div className="p-6 sm:p-10 flex flex-col">
               <h1 className="text-2xl sm:text-3xl font-extrabold tracking-tight text-gray-900">
                 {product.name}
@@ -60,7 +79,7 @@ export default async function ProductPage({ params }: ProductPageProps) {
                 <span className="text-gray-500">(128 条评价)</span>
               </div>
 
-              <div className="mt-5 flex items-baseline gap-3">
+              <div className="mt-5 flex items-baseline gap-3 flex-wrap">
                 <p className="text-4xl font-extrabold text-gray-900">
                   <span className="text-xl text-gray-500 mr-0.5">¥</span>
                   {product.price}
@@ -96,6 +115,21 @@ export default async function ProductPage({ params }: ProductPageProps) {
             </div>
           </div>
         </div>
+
+        {/* Related */}
+        {related && related.length > 0 && (
+          <section className="mt-12">
+            <div className="flex items-end justify-between mb-6">
+              <h2 className="text-2xl font-bold text-gray-900">你可能还喜欢</h2>
+              <Link href="/" className="text-sm text-indigo-600 hover:underline">查看全部 →</Link>
+            </div>
+            <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 sm:gap-6">
+              {related.map((p) => (
+                <ProductCard key={p.id} product={p} />
+              ))}
+            </div>
+          </section>
+        )}
       </div>
     </div>
   );

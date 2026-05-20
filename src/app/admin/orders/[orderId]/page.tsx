@@ -1,102 +1,110 @@
 import { createAdminClient } from '@/lib/supabase/admin';
 import { createClient } from '@/lib/supabase/server';
 import { cookies } from 'next/headers';
-import { notFound, redirect } from 'next/navigation';
+import { notFound } from 'next/navigation';
 import Link from 'next/link';
 import OrderStatusSelector from '@/components/OrderStatusSelector';
+import OrderStatusBadge from '@/components/OrderStatusBadge';
 import type { OrderDetails } from '@/lib/types';
 
-interface AdminOrderDetailsPageProps {
-  params: {
-    orderId: string;
-  };
+export const revalidate = 0;
+
+interface Props {
+  params: { orderId: string };
 }
 
-// These are the possible statuses from our enum type in the database
-const orderStatuses = ['pending', 'processing', 'shipped', 'delivered', 'cancelled'];
-
-export default async function AdminOrderDetailsPage({ params }: AdminOrderDetailsPageProps) {
+export default async function AdminOrderDetailsPage({ params }: Props) {
   const cookieStore = cookies();
   const supabase = createClient(cookieStore);
-
   const { data: { user } } = await supabase.auth.getUser();
-
-  // Admin Check
-  if (!user || user.email !== process.env.ADMIN_EMAIL) {
-    return notFound();
-  }
+  if (!user || user.email !== process.env.ADMIN_EMAIL) notFound();
 
   const adminSupabase = createAdminClient();
-
-  // Fetch the specific order using admin client
   const { data, error } = await adminSupabase
     .from('orders')
-    .select(`*, order_items(*, products(*)) `)
+    .select(`*, order_items(*, products(*))`)
     .eq('id', params.orderId)
     .single();
 
-  // Explicitly cast the fetched data to our detailed type
   const order: OrderDetails | null = data as OrderDetails | null;
+  if (error || !order) notFound();
 
-  if (error || !order) {
-    notFound();
-  }
-
-  
-
-  const address = order.shipping_address as { fullName?: string, address?: string, city?: string, postalCode?: string } | null;
+  const address = order.shipping_address as
+    | { fullName?: string; address?: string; city?: string; postalCode?: string }
+    | null;
 
   return (
-    <div className="p-8">
-      <Link href="/admin/orders" className="text-sm font-medium text-indigo-600 hover:text-indigo-500 mb-8 block">
-        &larr; 返回所有订单
-      </Link>
-      
-      <h1 className="text-3xl font-bold">订单详情 #{order.id}</h1>
+    <div className="space-y-6">
+      <nav className="text-sm text-gray-500 flex items-center gap-2">
+        <Link href="/admin/orders" className="hover:text-indigo-600">订单管理</Link>
+        <span>/</span>
+        <span className="text-gray-700">#{order.id}</span>
+      </nav>
 
-      <div className="mt-8 grid grid-cols-1 md:grid-cols-3 gap-8">
-        <div className="md:col-span-2">
-          <h2 className="text-lg font-medium text-gray-900">商品列表</h2>
-          <ul role="list" className="mt-4 divide-y divide-gray-200 border-t border-b">
-            {order.order_items.map((item) => {
-              const product = Array.isArray(item.products) ? item.products[0] : item.products;
-              return (
-                <li key={item.id} className="flex py-4">
-                  <div className="flex-shrink-0">
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <h1 className="text-2xl sm:text-3xl font-extrabold text-gray-900">订单 #{order.id}</h1>
+        <OrderStatusBadge status={order.status} />
+      </div>
+
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+        <div className="lg:col-span-2 space-y-6">
+          <section className="rounded-2xl bg-white ring-1 ring-gray-100 shadow-sm overflow-hidden">
+            <h2 className="px-6 pt-6 text-lg font-semibold text-gray-900">商品列表</h2>
+            <ul className="mt-4 divide-y divide-gray-100">
+              {order.order_items.map((item: any) => {
+                const p = Array.isArray(item.products) ? item.products[0] : item.products;
+                return (
+                  <li key={item.id} className="flex p-4 sm:p-5 gap-4">
                     {/* eslint-disable-next-line @next/next/no-img-element */}
-                    <img src={product?.image_url ?? ''} alt={product?.name ?? ''} className="h-16 w-16 rounded-md object-cover" />
-                  </div>
-                  <div className="ml-4 flex flex-1 flex-col">
-                    <h4 className="font-medium text-gray-900">{product?.name ?? '商品已删除'}</h4>
-                    <p className="text-sm text-gray-500">单价: ${item.price}</p>
-                    <p className="text-sm text-gray-500">数量: {item.quantity}</p>
-                  </div>
-                </li>
-              );
-            })}
-          </ul>
-        </div>
+                    <img
+                      src={p?.image_url ?? ''}
+                      alt={p?.name ?? ''}
+                      className="h-16 w-16 rounded-xl object-cover bg-gray-100 flex-shrink-0"
+                    />
+                    <div className="flex-1 min-w-0">
+                      <p className="text-sm font-medium text-gray-900 truncate">
+                        {p?.name ?? '商品已删除'}
+                      </p>
+                      <p className="text-xs text-gray-500">单价 ¥{Number(item.price).toFixed(2)}</p>
+                      <p className="text-xs text-gray-500">数量 × {item.quantity}</p>
+                    </div>
+                    <p className="text-sm font-semibold text-gray-900 self-center whitespace-nowrap">
+                      ¥{(Number(item.price) * item.quantity).toFixed(2)}
+                    </p>
+                  </li>
+                );
+              })}
+            </ul>
+          </section>
 
-        <div>
-          <div className="rounded-lg bg-gray-50 p-6">
-            <h2 className="text-lg font-medium text-gray-900">更新状态</h2>
-            <OrderStatusSelector orderId={order.id} currentStatus={order.status} />
-          </div>
-
-          <div className="mt-8">
-            <h2 className="text-lg font-medium text-gray-900">收货地址</h2>
-            <address className="mt-4 not-italic text-gray-500">
-              <p>{address?.fullName}</p>
-              <p>{address?.address}</p>
-              <p>{address?.city}, {address?.postalCode}</p>
-            </address>
-          </div>
-
-           <div className="mt-8 border-t pt-8">
-              <h2 className="text-lg font-medium text-gray-900">订单总计</h2>
-              <p className="mt-2 text-2xl font-bold text-gray-900">${order.total_amount}</p>
+          <section className="rounded-2xl bg-white ring-1 ring-gray-100 shadow-sm p-6">
+            <h2 className="text-lg font-semibold text-gray-900">收货地址</h2>
+            <div className="mt-3 text-sm text-gray-700 space-y-1">
+              <p className="font-medium">{address?.fullName ?? '—'}</p>
+              <p>{address?.address ?? '—'}</p>
+              <p>{address?.city ?? '—'} {address?.postalCode ?? ''}</p>
             </div>
+          </section>
         </div>
+
+        <aside className="lg:col-span-1 space-y-6">
+          <div className="rounded-2xl bg-white ring-1 ring-gray-100 shadow-sm p-6">
+            <h2 className="text-lg font-semibold text-gray-900">更新状态</h2>
+            <div className="mt-3">
+              <OrderStatusSelector orderId={order.id} currentStatus={order.status} />
+            </div>
+          </div>
+
+          <div className="rounded-2xl bg-white ring-1 ring-gray-100 shadow-sm p-6">
+            <h2 className="text-lg font-semibold text-gray-900">订单总计</h2>
+            <p className="mt-3 text-3xl font-extrabold text-indigo-600">
+              ¥{Number(order.total_amount).toFixed(2)}
+            </p>
+            <p className="mt-1 text-xs text-gray-400">
+              下单时间 {new Date(order.created_at).toLocaleString('zh-CN')}
+            </p>
+          </div>
+        </aside>
       </div>
     </div>
   );

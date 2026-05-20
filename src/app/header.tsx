@@ -60,10 +60,10 @@ export default async function Header() {
             <div className="flex items-center gap-2 sm:gap-3">
               {isAdmin && (
                 <Link
-                  href="/admin/orders"
-                  className="hidden sm:inline-flex items-center px-3 py-1.5 rounded-md text-indigo-600 font-medium hover:bg-indigo-50 transition-colors"
+                  href="/admin"
+                  className="hidden sm:inline-flex items-center gap-1 px-3 py-1.5 rounded-md text-indigo-600 font-medium hover:bg-indigo-50 transition-colors"
                 >
-                  后台管理
+                  <span>⚙️</span> 后台管理
                 </Link>
               )}
               <Link

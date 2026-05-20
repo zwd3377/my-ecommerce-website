@@ -2,23 +2,29 @@ import { cookies } from "next/headers";
 import { createClient } from "@/lib/supabase/server";
 import type { Product } from "@/lib/types";
 import ProductCard from "@/app/product-card";
+import Link from "next/link";
 
 export const revalidate = 0;
 
-export default async function Home() {
+interface Props {
+  searchParams: { q?: string };
+}
+
+export default async function Home({ searchParams }: Props) {
   const cookieStore = cookies();
   const supabase = createClient(cookieStore);
-  const { data: products, error } = await supabase
-    .from("products")
-    .select("*")
-    .returns<Product[]>();
+  const q = (searchParams?.q || '').trim();
+
+  let query = supabase.from("products").select("*").order('id', { ascending: false });
+  if (q) query = query.ilike('name', `%${q}%`);
+  const { data: products, error } = await query.returns<Product[]>();
 
   return (
     <main className="bg-gray-50 min-h-screen">
       {/* Hero Section */}
       <section className="relative overflow-hidden bg-gradient-to-br from-indigo-600 via-purple-600 to-pink-500">
         <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_top_right,_rgba(255,255,255,0.2),_transparent_50%)]" />
-        <div className="relative mx-auto max-w-7xl px-4 sm:px-6 lg:px-8 py-20 sm:py-28 lg:py-32">
+        <div className="relative mx-auto max-w-7xl px-4 sm:px-6 lg:px-8 py-16 sm:py-24 lg:py-28">
           <div className="max-w-2xl">
             <span className="inline-flex items-center rounded-full bg-white/20 backdrop-blur px-3 py-1 text-xs font-medium text-white ring-1 ring-white/30">
               ✨ 全场新品上市 · 限时优惠
@@ -32,21 +38,28 @@ export default async function Home() {
             <p className="mt-6 text-lg text-indigo-100 max-w-xl">
               精选全球好物，品质保证，闪电送达。让购物成为一种享受。
             </p>
-            <div className="mt-8 flex flex-wrap gap-4">
-              <a
-                href="#products"
-                className="inline-flex items-center rounded-full bg-white px-6 py-3 text-sm font-semibold text-indigo-600 shadow-lg hover:bg-indigo-50 transition-colors"
+
+            {/* Search */}
+            <form action="/" className="mt-8 max-w-lg flex items-center gap-2 rounded-full bg-white/95 backdrop-blur p-1.5 shadow-xl">
+              <span className="pl-4 text-gray-400">
+                <svg className="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                  <circle cx="11" cy="11" r="8" />
+                  <path d="m21 21-4.35-4.35" strokeLinecap="round" />
+                </svg>
+              </span>
+              <input
+                name="q"
+                defaultValue={q}
+                placeholder="搜索你想要的商品…"
+                className="flex-1 bg-transparent text-sm text-gray-900 placeholder:text-gray-400 focus:outline-none px-2"
+              />
+              <button
+                type="submit"
+                className="rounded-full bg-gradient-to-r from-indigo-600 to-purple-600 text-white text-sm font-semibold px-5 py-2 hover:shadow-md transition"
               >
-                立即选购
-                <span className="ml-2">→</span>
-              </a>
-              <a
-                href="#features"
-                className="inline-flex items-center rounded-full border border-white/40 px-6 py-3 text-sm font-semibold text-white hover:bg-white/10 transition-colors"
-              >
-                了解更多
-              </a>
-            </div>
+                搜索
+              </button>
+            </form>
           </div>
         </div>
       </section>
@@ -74,18 +87,25 @@ export default async function Home() {
 
       {/* Products */}
       <section id="products" className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8 pb-20">
-        <div className="flex items-end justify-between mb-8">
+        <div className="flex items-end justify-between mb-8 flex-wrap gap-3">
           <div>
             <h2 className="text-3xl font-extrabold tracking-tight text-gray-900 sm:text-4xl">
-              精选商品
+              {q ? `搜索结果：${q}` : '精选商品'}
             </h2>
-            <p className="mt-2 text-gray-500">探索我们精心挑选的最新系列</p>
+            <p className="mt-2 text-gray-500">
+              {q
+                ? `共找到 ${products?.length ?? 0} 件相关商品`
+                : '探索我们精心挑选的最新系列'}
+            </p>
           </div>
-          <div className="hidden sm:flex gap-2 text-sm text-gray-500">
-            <span className="px-3 py-1.5 rounded-full bg-white border border-gray-200">全部</span>
-            <span className="px-3 py-1.5 rounded-full hover:bg-white border border-transparent hover:border-gray-200 cursor-pointer">新品</span>
-            <span className="px-3 py-1.5 rounded-full hover:bg-white border border-transparent hover:border-gray-200 cursor-pointer">热销</span>
-          </div>
+          {q && (
+            <Link
+              href="/"
+              className="text-sm text-indigo-600 hover:underline"
+            >
+              清除搜索 ✕
+            </Link>
+          )}
         </div>
 
         {error ? (
@@ -95,9 +115,13 @@ export default async function Home() {
           </div>
         ) : !products || products.length === 0 ? (
           <div className="rounded-2xl bg-white border border-gray-200 p-12 text-center">
-            <div className="text-5xl">🛍️</div>
-            <p className="mt-4 text-gray-700 font-medium">暂无商品</p>
-            <p className="mt-1 text-sm text-gray-500">请稍后再来看看吧！</p>
+            <div className="text-5xl">{q ? '🔍' : '🛍️'}</div>
+            <p className="mt-4 text-gray-700 font-medium">
+              {q ? '没有找到相关商品' : '暂无商品'}
+            </p>
+            <p className="mt-1 text-sm text-gray-500">
+              {q ? '试试其他关键词' : '请稍后再来看看吧！'}
+            </p>
           </div>
         ) : (
           <div className="grid grid-cols-2 sm:grid-cols-2 lg:grid-cols-4 gap-4 sm:gap-6">
